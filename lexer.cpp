@@ -1,152 +1,348 @@
 #include <iostream>
+#include <fstream>
+#include <cstring>
+#include <filesystem>
 #include "lexer.h"
 
-using std::cerr;
-using std::endl;
+unsigned int line = 1;
+char *cur_pos;
+std::string identifier;
+double number;
+std::string str;
 
-int getToken() {
-    static char cur_char = ' ';
+std::vector<char> readFile(const char *path) {
+    const char *extension = strrchr(path, '.');
 
-    while (isspace(cur_char)) {
-        cur_char = getchar();
+    if (!extension || strcmp(extension, ".axl") != 0) {
+        std::cerr << "Error: file must end in '.axl'" << std::endl;
+        exit(1);
     }
 
-    if (isalpha(cur_char)) {
-        input = cur_char;
+    std::ifstream file(path, std::ios::binary);
 
-        while (isalnum(cur_char = getchar())) {
-            input += cur_char;
-            cur_char = getchar();
-        }
-
-        return identifyToken(input);
-    }
-    
-    if (isdigit(cur_char)) {
-        string n = "";
-        bool has_point = false;
-
-        do {
-            n += cur_char;
-            cur_char = getchar();
-
-            if (has_point && cur_char == '.') {
-                cerr << "Too many decimal points in number." << endl;
-                exit(1);
-            }
-            
-            if (cur_char == '.') {
-                has_point = true;
-            }
-        } while (isdigit(cur_char) || cur_char == '.');
-
-        number = std::stod(n);
-        
-        return tok_number;
-    }
-    
-    if (cur_char == '\"' || cur_char == '\'') {
-        char quote = cur_char;
-
-        str += cur_char;
-        cur_char = getchar();
-
-        while (cur_char != quote && cur_char != EOF && cur_char != '\n' && cur_char != '\r') {
-            str += cur_char;
-            cur_char = getchar();
-        }
-
-        if (cur_char == quote) {
-            str += cur_char;
-            cur_char = getchar();
-
-            return tok_string;
-        } else {
-            cerr << "Missing closing quote." << endl;
-            exit(1);
-        }
-    }
-    
-    if (cur_char == '/' && getchar() == '/') {
-        do {
-            cur_char = getchar();
-        } while (cur_char != EOF && cur_char != '\n' && cur_char != '\r');
-
-        if (cur_char != EOF) {
-            return getToken();
-        }
-    }
-    
-    if (cur_char == EOF) {
-        return tok_eof;
+    if (!file.is_open()) {
+        std::cerr << "Error: could not open file " << path << std::endl;
+        exit(1);
     }
 
-    int this_char = cur_char;
-    cur_char = getchar();
+    uintmax_t size = std::filesystem::file_size(path);
 
-    return this_char;
+    std::vector<char> buffer(size + 1);
+    file.read(buffer.data(), size);
+    buffer[size] = '\0';
+
+    file.close();
+
+    return buffer;
 }
 
-int identifyToken(string s) {
-    if (s == "bool") {
+int scan() {
+    while (*cur_pos == ' ' || *cur_pos == '\t' || *cur_pos == '\n' || *cur_pos == '\r') {
+        if (*cur_pos == '\n') {
+            line++;
+        }
+
+        cur_pos++;
+    }
+
+    if (isalpha(*cur_pos) || *cur_pos == '_') {
+        return scanIdentifier();
+    } else if (isdigit(*cur_pos)) {
+        return scanNumber();
+    }
+
+    switch (*cur_pos) {
+        case '/':
+            if (*(cur_pos + 1) == '/') {
+                return scanComment();
+            } else if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "/=";
+
+                return tok_div_assign;
+            }
+
+            cur_pos++;
+            return '/';
+        case '+':
+            if (*(cur_pos + 1) == '+') {
+                cur_pos += 2;
+                identifier = "++";
+
+                return tok_increment;
+            } else if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "+=";
+
+                return tok_add_assign;
+            }
+
+            cur_pos++;
+            return '+';
+        case '-':
+            if (*(cur_pos + 1) == '-') {
+                cur_pos += 2;
+                identifier = "--";
+
+                return tok_decrement;
+            } else if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "-=";
+
+                return tok_sub_assign;
+            } else if (*(cur_pos + 1) == '>') {
+                cur_pos += 2;
+                identifier = "->";
+
+                return tok_arrow;
+            }
+
+            cur_pos++;
+            return '-';
+        case '*':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "*=";
+
+                return tok_mul_assign;
+            }
+
+            cur_pos++;
+            return '*';
+        case '%':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "%=";
+
+                return tok_mod_assign;
+            }
+
+            cur_pos++;
+            return '%';
+        case '=':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "==";
+
+                return tok_equal;
+            }
+
+            cur_pos++;
+            return '=';
+        case '!':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "!=";
+
+                return tok_not_equal;
+            }
+
+            cur_pos++;
+            return '!';
+        case '<':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = "<=";
+
+                return tok_less_equal;
+            }
+
+            cur_pos++;
+            return '<';
+        case '>':
+            if (*(cur_pos + 1) == '=') {
+                cur_pos += 2;
+                identifier = ">=";
+
+                return tok_greater_equal;
+            }
+
+            cur_pos++;
+            return '>';
+        case '&':
+            if (*(cur_pos + 1) == '&') {
+                cur_pos += 2;
+                identifier = "&&";
+
+                return tok_and;
+            }
+
+            cur_pos++;
+            return '&';
+        case '|':
+            if (*(cur_pos + 1) == '|') {
+                cur_pos += 2;
+                identifier = "||";
+
+                return tok_or;
+            }
+            
+            cur_pos++;
+            return '|';
+        case '\'':
+            return scanString();
+        case '"':
+            return scanString();
+        case '.':
+            if (*(cur_pos + 1) == '.' && *(cur_pos + 2) == '.') {
+                cur_pos += 3;
+                identifier = "...";
+
+                return tok_ellipsis;
+            }
+
+            cur_pos++;
+            return '.';
+        case '\0':
+            return tok_eof;
+        default:
+            char ch = *cur_pos;
+            cur_pos++;
+            return ch;
+    }
+}
+
+int scanIdentifier() {
+    identifier.clear();
+    
+    while (isalnum(*cur_pos) || *cur_pos == '_') {
+        identifier += *cur_pos++;
+    }
+
+    if (identifier == "bool") {
         return tok_bool;
-    }
-
-    if (s == "numero" || s == "número") {
+    } else if (identifier == "numero" || identifier == "número") {
         return tok_numero;
-    }
-
-    if (s == "cadena") {
+    } else if (identifier == "cadena") {
         return tok_cadena;
-    }
-
-    if (s == "nada") {
+    } else if (identifier == "nada") {
         return tok_nada;
-    }
-
-    if (s == "funcion" || s == "función") {
+    } else if (identifier == "funcion" || identifier == "función") {
         return tok_funcion;
-    }
-
-    if (s == "cierto") {
+    } else if (identifier == "cierto") {
         return tok_cierto;
-    }
-
-    if (s == "falso") {
+    } else if (identifier == "falso") {
         return tok_falso;
-    }
-
-    if (s == "si") {
+    } else if (identifier == "si") {
         return tok_si;
-    }
-
-    if (s == "sino") {
+    } else if (identifier == "sino") {
         return tok_sino;
-    }
-
-    if (s == "por") {
+    } else if (identifier == "por") {
         return tok_por;
-    }
-
-    if (s == "en") {
+    } else if (identifier == "en") {
         return tok_en;
-    }
-
-    if (s == "mientras") {
+    } else if (identifier == "mientras") {
         return tok_mientras;
-    }
-
-    if (s == "parar") {
+    } else if (identifier == "parar") {
         return tok_parar;
-    }
-
-    if (s == "continuar") {
+    } else if (identifier == "continuar") {
         return tok_continuar;
-    }
-
-    if (s == "regresar") {
+    } else if (identifier == "regresar") {
         return tok_regresar;
     }
 
     return tok_identifier;
+}
+
+int scanNumber() {
+    std::string n;
+    bool has_point = false;
+
+    do {
+        n += *cur_pos++;
+
+        if (*cur_pos == '.' && *(cur_pos + 1) == '.' && *(cur_pos + 2) == '.') {
+            number = std::stod(n);
+            return tok_number;
+        } else if (has_point && *cur_pos == '.') {
+            printError("too many decimal points in number");
+        } else if (*cur_pos == '.') {
+            has_point = true;
+        }
+    } while (isdigit(*cur_pos) || *cur_pos == '.');
+
+    number = std::stod(n);
+
+    return tok_number;
+}
+
+int scanString() {
+    str.clear();
+    char delimiter = *cur_pos;
+
+    if (delimiter != '"' && delimiter != '\'') {
+        printError("string must start with ' or \"");
+    }
+
+    cur_pos++;
+
+    while (*cur_pos != delimiter && *cur_pos != '\0') {
+        if (*cur_pos == '\\' && *(cur_pos + 1) != '\0') {
+            cur_pos++;
+
+            switch (*cur_pos) {
+                case 'n':
+                    str += '\n';
+                    break;
+                case 't':
+                    str += '\t';
+                    break;
+                case 'r':
+                    str += '\r';
+                    break;
+                case '\\':
+                    str += '\\';
+                    break;
+                case '"':
+                    str += '"';
+                    break;
+                case '\'':
+                    str += '\'';
+                    break;
+                default:
+                    str += *cur_pos;
+                    break;
+            }
+        } else {
+            str += *cur_pos;
+        }
+
+        cur_pos++;
+    }
+
+    if (*cur_pos == delimiter) {
+        cur_pos++;
+    } else {
+        printError("unterminated string literal");
+    }
+
+    return tok_string;
+}
+
+int scanComment() {
+    cur_pos += 2;
+    
+    while (*cur_pos != '\0' && *cur_pos != '\n' && *cur_pos != '\r') {
+        cur_pos++;
+    }
+
+    if (*cur_pos == '\n') {
+        line++;
+        cur_pos++;
+    } else if (*cur_pos == '\r') {
+        cur_pos++;
+
+        if (*cur_pos == '\n') {
+            cur_pos++;
+        }
+
+        line++;
+    }
+
+    return tok_comment;
+}
+
+void printError(const std::string msg) {
+    std::cerr << "Error at line " << line << ": " << msg << std::endl;
+    exit(1);
 }
