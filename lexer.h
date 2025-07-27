@@ -54,10 +54,9 @@ extern double number;
 extern std::string str;
 
 std::vector<char> readFile(const char *);
-void debug();
 int scan();
 int scanIdentifier();
 int scanNumber();
 int scanString();
 int scanComment();
-void printError(const std::string);
+void printError(const std::string &);
