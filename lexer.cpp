@@ -342,7 +342,7 @@ int scanComment() {
     return tok_comment;
 }
 
-void printError(const std::string msg) {
+void printError(const std::string &msg) {
     std::cerr << "Error at line " << line << ": " << msg << std::endl;
     exit(1);
 }

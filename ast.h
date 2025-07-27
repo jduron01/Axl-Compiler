@@ -1,133 +1,78 @@
 #pragma once
 
-#include <memory>
 #include <string>
 #include <vector>
-
-using std::unique_ptr;
-using std::string;
-using std::vector;
-using std::move;
+#include <memory>
 
 class ASTNode {
     public:
         virtual ~ASTNode() = default;
 };
 
-class ASTNumberNode : public ASTNode {
+class ASTVariable: public ASTNode {
     public:
-        ASTNumberNode(double v)
-            : value(v)
-        {}
-    private:
-        double value;
-};
-
-class ASTStringNode : public ASTNode {
-    public:
-        ASTStringNode(string v)
-            : value(v)
-        {}
-    private:
-        string value;
-};
-
-class ASTVariableNode : public ASTNode {
-    public:
-        ASTVariableNode(const string &n)
+        ASTVariable(std::string &n)
             : name(n)
         {}
     private:
-        string name;
+        std::string name;
 };
 
-class ASTAssignNode : public ASTNode {
+class ASTNumber: public ASTNode {
     public:
-        ASTAssignNode(unique_ptr<ASTVariableNode> var, unique_ptr<ASTNode> val)
-            : var(move(var)), value(move(val))
+        ASTNumber(double n)
+            : number(n)
         {}
     private:
-        unique_ptr<ASTVariableNode> var;
-        unique_ptr<ASTNode> value;
+        double number;
 };
 
-class ASTBinaryNode : public ASTNode {
+class ASTString: public ASTNode {
     public:
-        ASTBinaryNode(char o, unique_ptr<ASTNode> l, unique_ptr<ASTNode> r)
-            : op(o), lhs(move(l)), rhs(move(r))
+        ASTString(std::string &sl)
+            : string_literal(sl)
+        {}
+    private:
+        std::string string_literal;
+};
+
+class ASTUnaryOp: public ASTNode {
+    public:
+        ASTUnaryOp(char o, bool s, std::unique_ptr<ASTNode> l, std::unique_ptr<ASTNode> r)
+            : op(o), side(s), lhs(std::move(l)), rhs(std::move(r))
         {}
     private:
         char op;
-        unique_ptr<ASTNode> lhs;
-        unique_ptr<ASTNode> rhs;
+        bool side;
+        std::unique_ptr<ASTNode> lhs, rhs;
 };
 
-class ASTCallNode : public ASTNode {
+class ASTBinaryOp: public ASTNode {
     public:
-        ASTCallNode(const string &c, vector<unique_ptr<ASTNode>> a)
-            : callee(c), args(a)
+        ASTBinaryOp(char o, std::unique_ptr<ASTNode> l, std::unique_ptr<ASTNode> r)
+            : op(o), lhs(std::move(l)), rhs(std::move(r))
         {}
     private:
-        string callee;
-        vector<unique_ptr<ASTNode>> args;
+        char op;
+        std::unique_ptr<ASTNode> lhs, rhs;
 };
 
-class ASTIfNode : public ASTNode {
+class ASTIfStmt: public ASTNode {
     public:
-        ASTIfNode(unique_ptr<ASTNode> c, unique_ptr<ASTNode> b,
-                  unique_ptr<ASTNode> e)
-            : condition(move(c)), body(move(b)), else_branch(move(e))
+        ASTIfStmt(std::unique_ptr<ASTNode> c, std::vector<std::unique_ptr<ASTNode>> eib, std::unique_ptr<ASTNode> eb)
+            : condition(std::move(c)), else_if_branches(eib), else_branch(std::move(eb))
         {}
     private:
-        unique_ptr<ASTNode> condition, body, else_branch;
+        std::unique_ptr<ASTNode> condition;
+        std::vector<std::unique_ptr<ASTNode>> else_if_branches;
+        std::unique_ptr<ASTNode> else_branch;
 };
 
-class ASTElseIfNode : public ASTNode {
+class ASTWhileLoop: public ASTNode {
     public:
-        ASTElseIfNode(unique_ptr<ASTNode> c)
-            : condition(move(c))
+        ASTWhileLoop(std::unique_ptr<ASTNode> c, std::unique_ptr<ASTNode> b)
+            : condition(std::move(c)), body(std::move(b))
         {}
     private:
-        unique_ptr<ASTNode> condition;
-};
-
-class ASTForNode : public ASTNode {
-    public:
-        ASTForNode(const string &v, unique_ptr<ASTNode> l, unique_ptr<ASTNode> u,
-                   unique_ptr<ASTNode> s, unique_ptr<ASTNode> b)
-            : var(v), lower(move(l)), upper(move(u)), step(move(s)), body(move(b))
-        {}
-    private:
-        string var;
-        unique_ptr<ASTNode> lower, upper, step, body;
-};
-
-class ASTWhileNode : public ASTNode {
-    public:
-        ASTWhileNode(unique_ptr<ASTNode> c, unique_ptr<ASTNode> b)
-            : condition(move(c)), body(move(b))
-        {}
-    private:
-        unique_ptr<ASTNode> condition, body;
-};
-
-class ASTPrototypeNode : public ASTNode {
-    public:
-        ASTPrototypeNode(const string &n, vector<string> a)
-            : name(n), args(a)
-        {}
-    private:
-        string name;
-        vector<string> args;
-};
-
-class ASTFunctionNode : public ASTNode {
-    public:
-        ASTFunctionNode(unique_ptr<ASTPrototypeNode> p, unique_ptr<ASTNode> b,
-                        unique_ptr<ASTNode> r)
-            : prototype(move(p)), body(move(b)), ret(move(r))
-        {}
-    private:
-        unique_ptr<ASTPrototypeNode> prototype;
-        unique_ptr<ASTNode> body, ret;
+        std::unique_ptr<ASTNode> condition, body;
 };
